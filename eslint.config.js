@@ -6,7 +6,17 @@ export default [
 
   {
     files: ['**/*.js'],
-    ignores: ['node_modules/**', 'test-results/**', 'playwright-report/**', 'blob-report/**'],
+    ignores: [
+      'node_modules/**',
+      'test-results/**',
+      'playwright-report/**',
+      'blob-report/**',
+    ],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+      },
+    },
     plugins: {
       playwright,
     },
