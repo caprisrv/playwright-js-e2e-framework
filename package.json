@@ -6,7 +6,8 @@
   "scripts": {
     "test": "playwright test",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "discover": "node scripts/discover-tests.js"
   },
   "repository": {
     "type": "git",

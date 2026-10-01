@@ -24,4 +24,13 @@ export default [
       ...playwright.configs['flat/recommended'].rules,
     },
   },
+
+  {
+    files: ['scripts/**/*.js'],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+      },
+    },
+  },
 ];

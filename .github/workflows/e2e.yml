@@ -6,11 +6,38 @@ on:
       - main
 
   workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to run tests from'
+        required: true
+        default: 'main'
+        type: string
+
+      tag:
+        description: 'Test tag'
+        required: true
+        default: '@regression'
+        type: string
+
+      scenarios_per_shard:
+        description: 'Scenarios per shard'
+        required: true
+        default: '2'
+        type: number
+
+      max_retries:
+        description: 'Maximum retry attempts'
+        required: true
+        default: '2'
+        type: number
 
 jobs:
-  e2e-tests:
-    name: Playwright E2E Tests
+  discover:
+    name: Discover Tests
     runs-on: ubuntu-latest
+
+    outputs:
+      shard_plan: ${{ steps.create-shard-plan.outputs.shard_plan }}
 
     env:
       E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
@@ -20,6 +47,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch || 'main' }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -33,13 +62,89 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Run Playwright tests
-        run: npx playwright test
+      - name: Create shard plan
+        id: create-shard-plan
+        run: |
+          mkdir -p artifacts
 
-      - name: Upload Playwright report
-        if: ${{ !cancelled() }}
+          node scripts/discover-tests.js \
+            --tag "${{ inputs.tag || '@regression' }}" \
+            --scenarios-per-shard "${{ inputs.scenarios_per_shard || '2' }}" \
+            > artifacts/shard-plan.json
+
+          {
+            echo 'shard_plan<<EOF'
+            cat artifacts/shard-plan.json
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload shard plan
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
-          path: playwright-report/
+          name: shard-plan
+          path: artifacts/shard-plan.json
           retention-days: 14
+
+  execute-shards:
+    name: Execute Shard ${{ matrix.shard.shard }}
+    needs: discover
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.discover.outputs.shard_plan).shards }}
+
+    env:
+      E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      ENVIRONMENT: qa
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch || 'main' }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Display shard plan
+        run: |
+          echo "Shard: ${{ matrix.shard.shard }}"
+          echo "Scenarios:"
+
+          node -e '
+            const shard = ${{ toJSON(matrix.shard) }};
+            for (const test of shard.tests) {
+              console.log(`- ${test.file}:${test.line} - ${test.title}`);
+            }
+          '
+
+      - name: Execute shard
+        run: |
+          node -e '
+            const shard = ${{ toJSON(matrix.shard) }};
+            const { execFileSync } = require("node:child_process");
+
+            const locations = shard.tests.map(
+              (test) => `${test.file}:${test.line}`,
+            );
+
+            execFileSync(
+              "npx",
+              ["playwright", "test", ...locations],
+              {
+                stdio: "inherit",
+              },
+            );
+          '

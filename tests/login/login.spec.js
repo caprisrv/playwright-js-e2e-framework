@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { LoginPage } from '../../pages/LoginPage.js';
 import { ProductsPage } from '../../pages/ProductsPage.js';
 
-test('user can log in successfully', async ({ page }) => {
+test('user can log in successfully', { tag: '@regression', }, async ({ page }) => {
   const loginPage = new LoginPage(page);
   const productsPage = new ProductsPage(page);
 
