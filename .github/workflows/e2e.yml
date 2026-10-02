@@ -228,8 +228,8 @@ jobs:
           name: execution-result-${{ github.run_id }}-shard-${{ matrix.shard.shard }}-attempt-${{ inputs.retry_attempt || '0' }}
           path: artifacts/${{ github.run_id }}/${{ inputs.execution_mode == 'automatic-retry' && 'retry' || 'initial' }}-shard-${{ matrix.shard.shard }}-attempt-${{ inputs.retry_attempt || '0' }}.json
           retention-days: 14
-  collect-initial-results:
-    name: Collect Initial Results
+  collect-execution-results:
+    name: Collect Execution Results
     needs: execute-shards
     if: always()
     runs-on: ubuntu-latest
@@ -254,26 +254,51 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Set execution context
+        id: execution-context
+        run: |
+          EXECUTION_TYPE="initial"
+          ATTEMPT="0"
+
+          if [ "${{ inputs.execution_mode }}" = "automatic-retry" ]; then
+            EXECUTION_TYPE="retry"
+            ATTEMPT="${{ inputs.retry_attempt }}"
+          fi
+
+          NEXT_ATTEMPT=$((ATTEMPT + 1))
+
+          echo "EXECUTION_TYPE=$EXECUTION_TYPE" >> "$GITHUB_ENV"
+          echo "ATTEMPT=$ATTEMPT" >> "$GITHUB_ENV"
+          echo "NEXT_ATTEMPT=$NEXT_ATTEMPT" >> "$GITHUB_ENV"
+
+          echo "next_attempt=$NEXT_ATTEMPT" >> "$GITHUB_OUTPUT"
+
+          echo "Execution type: $EXECUTION_TYPE"
+          echo "Attempt: $ATTEMPT"
+          echo "Next attempt: $NEXT_ATTEMPT"
+
       - name: Download execution results
         uses: actions/download-artifact@v4
         with:
-          pattern: execution-result-${{ github.run_id }}-shard-*-attempt-0
-          path: artifacts/initial-results
+          pattern: execution-result-${{ github.run_id }}-shard-*-attempt-${{ inputs.retry_attempt || '0' }}
+          path: artifacts/execution-results
           merge-multiple: true
 
       - name: Display collected results
         run: |
-          echo "Collected initial execution results:"
-          find artifacts/initial-results -type f -print
+          echo "Collected execution results:"
+          find artifacts/execution-results -type f -print
 
       - name: Create retry plan
         run: |
           mkdir -p artifacts/retry
 
+          NEXT_ATTEMPT=$((ATTEMPT + 1))
+
           node scripts/create-retry-plan.js \
-            --results-directory "artifacts/initial-results" \
+            --results-directory "artifacts/execution-results" \
             --scenarios-per-shard "${{ inputs.scenarios_per_shard || '2' }}" \
-            --attempt 1 \
+            --attempt "$NEXT_ATTEMPT" \
             --output "artifacts/retry/retry-plan.json"
 
       - name: Display retry plan
@@ -285,6 +310,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: retry-plan-${{ github.run_id }}-attempt-1
+          name: retry-plan-${{ github.run_id }}-attempt-${{ steps.execution-context.outputs.next_attempt }}
           path: artifacts/retry/retry-plan.json
           retention-days: 14
