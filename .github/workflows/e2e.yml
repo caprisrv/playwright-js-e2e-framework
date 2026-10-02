@@ -31,6 +31,37 @@ on:
         default: '2'
         type: number
 
+      execution_mode:
+        description: 'Execution mode'
+        required: true
+        default: 'full-suite'
+        type: choice
+        options:
+          - full-suite
+          - automatic-retry
+          - historical-validation
+
+      source_run_id:
+        description: 'Source framework run ID for historical validation'
+        required: false
+        type: string
+
+      retry_run_id:
+        description: 'Logical framework run ID for automatic retry'
+        required: false
+        type: string
+
+      retry_attempt:
+        description: 'Retry attempt number'
+        required: false
+        default: '0'
+        type: number
+
+      source_workflow_run_id:
+        description: 'Previous GitHub Actions run ID containing retry results'
+        required: false
+        type: string
+
 jobs:
   discover:
     name: Discover Tests
@@ -166,7 +197,26 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
 
+    env:
+      E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      ENVIRONMENT: qa
+
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch || 'main' }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Download execution results
         uses: actions/download-artifact@v4
         with:
@@ -178,3 +228,26 @@ jobs:
         run: |
           echo "Collected initial execution results:"
           find artifacts/initial-results -type f -print
+
+      - name: Create retry plan
+        run: |
+          mkdir -p artifacts/retry
+
+          node scripts/create-retry-plan.js \
+            --results-directory "artifacts/initial-results" \
+            --scenarios-per-shard "${{ inputs.scenarios_per_shard || '2' }}" \
+            --attempt 1 \
+            --output "artifacts/retry/retry-plan.json"
+
+      - name: Display retry plan
+        run: |
+          echo "Generated retry plan:"
+          cat artifacts/retry/retry-plan.json
+
+      - name: Upload retry plan
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: retry-plan-${{ github.run_id }}-attempt-1
+          path: artifacts/retry/retry-plan.json
+          retention-days: 14
