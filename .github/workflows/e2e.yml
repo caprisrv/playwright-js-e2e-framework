@@ -160,3 +160,21 @@ jobs:
           name: execution-result-${{ github.run_id }}-shard-${{ matrix.shard.shard }}-attempt-0
           path: artifacts/${{ github.run_id }}/initial-shard-${{ matrix.shard.shard }}-attempt-0.json
           retention-days: 14
+  collect-initial-results:
+    name: Collect Initial Results
+    needs: execute-shards
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download execution results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: execution-result-${{ github.run_id }}-shard-*-attempt-0
+          path: artifacts/initial-results
+          merge-multiple: true
+
+      - name: Display collected results
+        run: |
+          echo "Collected initial execution results:"
+          find artifacts/initial-results -type f -print
