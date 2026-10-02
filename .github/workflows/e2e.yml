@@ -130,21 +130,25 @@ jobs:
             }
           '
 
-      - name: Execute shard
+      - name: Create shard file
         run: |
+          mkdir -p artifacts
+
           node -e '
+            const fs = require("node:fs");
+
             const shard = ${{ toJSON(matrix.shard) }};
-            const { execFileSync } = require("node:child_process");
 
-            const locations = shard.tests.map(
-              (test) => `${test.file}:${test.line}`,
-            );
-
-            execFileSync(
-              "npx",
-              ["playwright", "test", ...locations],
-              {
-                stdio: "inherit",
-              },
+            fs.writeFileSync(
+              `artifacts/shard-${shard.shard}.json`,
+              JSON.stringify(shard, null, 2),
             );
           '
+
+      - name: Execute shard
+        run: |
+          node scripts/execute-shard.js \
+            --shard-file "artifacts/shard-${{ matrix.shard.shard }}.json" \
+            --run-id "${{ github.run_id }}" \
+            --execution-type initial \
+            --attempt 0
