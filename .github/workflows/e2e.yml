@@ -204,18 +204,29 @@ jobs:
 
       - name: Execute shard
         run: |
+          EXECUTION_TYPE="initial"
+          ATTEMPT="0"
+
+          if [ "${{ inputs.execution_mode }}" = "automatic-retry" ]; then
+            EXECUTION_TYPE="retry"
+            ATTEMPT="${{ inputs.retry_attempt }}"
+          fi
+
+          echo "Execution type: $EXECUTION_TYPE"
+          echo "Attempt: $ATTEMPT"
+
           node scripts/execute-shard.js \
             --shard-file "artifacts/shard-${{ matrix.shard.shard }}.json" \
             --run-id "${{ github.run_id }}" \
-            --execution-type initial \
-            --attempt 0
+            --execution-type "$EXECUTION_TYPE" \
+            --attempt "$ATTEMPT"
 
       - name: Upload execution result
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: execution-result-${{ github.run_id }}-shard-${{ matrix.shard.shard }}-attempt-0
-          path: artifacts/${{ github.run_id }}/initial-shard-${{ matrix.shard.shard }}-attempt-0.json
+          name: execution-result-${{ github.run_id }}-shard-${{ matrix.shard.shard }}-attempt-${{ inputs.retry_attempt || '0' }}
+          path: artifacts/${{ github.run_id }}/${{ inputs.execution_mode == 'automatic-retry' && 'retry' || 'initial' }}-shard-${{ matrix.shard.shard }}-attempt-${{ inputs.retry_attempt || '0' }}.json
           retention-days: 14
   collect-initial-results:
     name: Collect Initial Results
