@@ -133,11 +133,7 @@ jobs:
             cp "$RETRY_PLAN_FILE" artifacts/shard-plan.json
           fi
 
-          {
-            echo 'shard_plan<<EOF'
-            cat artifacts/shard-plan.json
-            echo 'EOF'
-          } >> "$GITHUB_OUTPUT"
+          echo "shard_plan=$(jq -c . artifacts/shard-plan.json)" >> "$GITHUB_OUTPUT"
 
       - name: Upload shard plan
         uses: actions/upload-artifact@v4
