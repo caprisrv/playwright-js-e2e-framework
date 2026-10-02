@@ -62,13 +62,17 @@ on:
         required: false
         type: string
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   discover:
     name: Discover Tests
     runs-on: ubuntu-latest
 
     outputs:
-      shard_plan: ${{ steps.create-shard-plan.outputs.shard_plan }}
+      shard_plan: ${{ steps.prepare-shard-plan.outputs.shard_plan }}
 
     env:
       E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
@@ -93,8 +97,18 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Create shard plan
-        id: create-shard-plan
+      - name: Download retry plan
+        if: ${{ inputs.execution_mode == 'automatic-retry' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: retry-plan-${{ inputs.source_workflow_run_id }}-attempt-${{ inputs.retry_attempt }}
+          path: artifacts/retry-plan
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.source_workflow_run_id }}
+
+      - name: Create full-suite shard plan
+        if: ${{ inputs.execution_mode != 'automatic-retry' }}
         run: |
           mkdir -p artifacts
 
@@ -102,6 +116,22 @@ jobs:
             --tag "${{ inputs.tag || '@regression' }}" \
             --scenarios-per-shard "${{ inputs.scenarios_per_shard || '2' }}" \
             > artifacts/shard-plan.json
+
+      - name: Prepare shard plan
+        id: prepare-shard-plan
+        run: |
+          mkdir -p artifacts
+
+          if [ "${{ inputs.execution_mode }}" = "automatic-retry" ]; then
+            RETRY_PLAN_FILE="$(find artifacts/retry-plan -type f -name 'retry-plan.json' -print -quit)"
+
+            if [ -z "$RETRY_PLAN_FILE" ]; then
+              echo "Retry plan file not found."
+              exit 1
+            fi
+
+            cp "$RETRY_PLAN_FILE" artifacts/shard-plan.json
+          fi
 
           {
             echo 'shard_plan<<EOF'
