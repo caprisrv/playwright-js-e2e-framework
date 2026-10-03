@@ -217,7 +217,7 @@ jobs:
 
           node scripts/execute-shard.js \
             --shard-file "artifacts/shard-${{ matrix.shard.shard }}.json" \
-            --run-id "${{ github.run_id }}" \
+            --run-id "${{ inputs.retry_run_id || github.run_id }}" \
             --execution-type "$EXECUTION_TYPE" \
             --attempt "$ATTEMPT"
 
@@ -226,13 +226,16 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: execution-result-${{ github.run_id }}-shard-${{ matrix.shard.shard }}-attempt-${{ inputs.retry_attempt || '0' }}
-          path: artifacts/${{ github.run_id }}/${{ inputs.execution_mode == 'automatic-retry' && 'retry' || 'initial' }}-shard-${{ matrix.shard.shard }}-attempt-${{ inputs.retry_attempt || '0' }}.json
+          path: artifacts/${{ inputs.retry_run_id || github.run_id }}/${{ inputs.execution_mode == 'automatic-retry' && 'retry' || 'initial' }}-shard-${{ matrix.shard.shard }}-attempt-${{ inputs.retry_attempt || '0' }}.json
           retention-days: 14
   collect-execution-results:
     name: Collect Execution Results
     needs: execute-shards
     if: always()
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
 
     env:
       E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
@@ -313,3 +316,45 @@ jobs:
           name: retry-plan-${{ github.run_id }}-attempt-${{ steps.execution-context.outputs.next_attempt }}
           path: artifacts/retry/retry-plan.json
           retention-days: 14
+      - name: Dispatch next retry
+        if: ${{ success() }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ inputs.branch || 'main' }}
+          TAG: ${{ inputs.tag || '@regression' }}
+          SCENARIOS_PER_SHARD: ${{ inputs.scenarios_per_shard || '2' }}
+          MAX_RETRIES: ${{ inputs.max_retries || '2' }}
+          RETRY_RUN_ID: ${{ inputs.retry_run_id || github.run_id }}
+          CURRENT_ATTEMPT: ${{ env.ATTEMPT }}
+          NEXT_ATTEMPT: ${{ steps.execution-context.outputs.next_attempt }}
+          SOURCE_WORKFLOW_RUN_ID: ${{ github.run_id }}
+        run: |
+          FAILED_SCENARIOS="$(jq -r '.totalFailedScenarios' artifacts/retry/retry-plan.json)"
+
+          if [ "$FAILED_SCENARIOS" -eq 0 ]; then
+            echo "No failed scenarios remain. No retry will be dispatched."
+            exit 0
+          fi
+
+          if [ "$CURRENT_ATTEMPT" -ge "$MAX_RETRIES" ]; then
+            echo "Maximum retry attempts reached ($MAX_RETRIES). No retry will be dispatched."
+            exit 0
+          fi
+
+          echo "Dispatching automatic retry..."
+          echo "Logical run ID: $RETRY_RUN_ID"
+          echo "Retry attempt: $NEXT_ATTEMPT"
+          echo "Source workflow run ID: $SOURCE_WORKFLOW_RUN_ID"
+
+          gh workflow run e2e.yml \
+            --repo "$REPOSITORY" \
+            --ref "$BRANCH" \
+            -f branch="$BRANCH" \
+            -f tag="$TAG" \
+            -f scenarios_per_shard="$SCENARIOS_PER_SHARD" \
+            -f max_retries="$MAX_RETRIES" \
+            -f execution_mode=automatic-retry \
+            -f retry_run_id="$RETRY_RUN_ID" \
+            -f retry_attempt="$NEXT_ATTEMPT" \
+            -f source_workflow_run_id="$SOURCE_WORKFLOW_RUN_ID"
