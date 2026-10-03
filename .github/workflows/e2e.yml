@@ -1,6 +1,6 @@
 name: E2E Tests
 run-name: >-
-  ${{ inputs.execution_mode == 'automatic-retry'
+  ${{ inputs.retry_run_id != ''
     && format('Retry Failed Tests - Run ID {0} - Attempt {1}', inputs.retry_run_id, inputs.retry_attempt)
     || 'E2E Tests' }}
 
@@ -11,16 +11,9 @@ on:
 
   workflow_dispatch:
     inputs:
-      branch:
-        description: 'Branch to run tests from'
-        required: true
-        default: 'main'
-        type: string
-
-      tag:
+      test_tag:
         description: 'Test tag'
-        required: true
-        default: '@regression'
+        required: false
         type: string
 
       scenarios_per_shard:
@@ -42,7 +35,6 @@ on:
         type: choice
         options:
           - full-suite
-          - automatic-retry
           - historical-validation
 
       source_run_id:
@@ -86,8 +78,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.branch || 'main' }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -102,7 +92,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Download retry plan
-        if: ${{ inputs.execution_mode == 'automatic-retry' }}
+        if: ${{ inputs.retry_run_id != '' }}
         uses: actions/download-artifact@v4
         with:
           name: retry-plan-${{ inputs.source_workflow_run_id }}-attempt-${{ inputs.retry_attempt }}
@@ -117,7 +107,7 @@ jobs:
           mkdir -p artifacts
 
           node scripts/discover-tests.js \
-            --tag "${{ inputs.tag || '@regression' }}" \
+            --tag "${{ inputs.test_tag || '@regression' }}" \
             --scenarios-per-shard "${{ inputs.scenarios_per_shard || '2' }}" \
             > artifacts/shard-plan.json
 
@@ -139,7 +129,7 @@ jobs:
         run: |
           mkdir -p artifacts
 
-          if [ "${{ inputs.execution_mode }}" = "automatic-retry" ]; then
+          if [ -n "${{ inputs.retry_run_id }}" ]; then
             RETRY_PLAN_FILE="$(find artifacts/retry-plan -type f -name 'retry-plan.json' -print -quit)"
 
             if [ -z "$RETRY_PLAN_FILE" ]; then
@@ -177,8 +167,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.branch || 'main' }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -224,7 +212,7 @@ jobs:
           EXECUTION_TYPE="initial"
           ATTEMPT="0"
 
-          if [ "${{ inputs.execution_mode }}" = "automatic-retry" ]; then
+          if [ -n "${{ inputs.retry_run_id }}" ]; then
             EXECUTION_TYPE="retry"
             ATTEMPT="${{ inputs.retry_attempt }}"
           fi
@@ -243,7 +231,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: execution-result-${{ github.run_id }}-shard-${{ matrix.shard.shard }}-attempt-${{ inputs.retry_attempt || '0' }}
-          path: artifacts/${{ inputs.retry_run_id || github.run_id }}/${{ inputs.execution_mode == 'automatic-retry' && 'retry' || 'initial' }}-shard-${{ matrix.shard.shard }}-attempt-${{ inputs.retry_attempt || '0' }}.json
+          path: artifacts/${{ inputs.retry_run_id || github.run_id }}/${{ inputs.retry_run_id != '' && 'retry' || 'initial' }}-shard-${{ matrix.shard.shard }}-attempt-${{ inputs.retry_attempt || '0' }}.json
           retention-days: 14
   collect-execution-results:
     name: Collect Execution Results
@@ -262,8 +250,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.branch || 'main' }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -280,7 +266,7 @@ jobs:
           EXECUTION_TYPE="initial"
           ATTEMPT="0"
 
-          if [ "${{ inputs.execution_mode }}" = "automatic-retry" ]; then
+          if [ -n "${{ inputs.retry_run_id }}" ]; then
             EXECUTION_TYPE="retry"
             ATTEMPT="${{ inputs.retry_attempt }}"
           fi
@@ -339,8 +325,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
-          BRANCH: ${{ inputs.branch || 'main' }}
-          TAG: ${{ inputs.tag || '@regression' }}
+          BRANCH: ${{ github.ref_name }}
+          TAG: ${{ inputs.test_tag || '@regression' }}
           SCENARIOS_PER_SHARD: ${{ inputs.scenarios_per_shard || '2' }}
           MAX_RETRIES: ${{ inputs.max_retries || '2' }}
           RETRY_RUN_ID: ${{ inputs.retry_run_id || github.run_id }}
@@ -368,11 +354,10 @@ jobs:
           gh workflow run e2e.yml \
             --repo "$REPOSITORY" \
             --ref "$BRANCH" \
-            -f branch="$BRANCH" \
-            -f tag="$TAG" \
+            -f test_tag="$TAG" \
             -f scenarios_per_shard="$SCENARIOS_PER_SHARD" \
             -f max_retries="$MAX_RETRIES" \
-            -f execution_mode=automatic-retry \
+            -f execution_mode=full-suite \
             -f retry_run_id="$RETRY_RUN_ID" \
             -f retry_attempt="$NEXT_ATTEMPT" \
             -f source_workflow_run_id="$SOURCE_WORKFLOW_RUN_ID"
