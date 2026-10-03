@@ -1,7 +1,7 @@
 name: E2E Tests
 run-name: >-
-  ${{ inputs.retry_run_id != ''
-    && format('Retry Failed Tests - Run ID {0} - Attempt {1}', inputs.retry_run_id, inputs.retry_attempt)
+  ${{ github.event_name == 'repository_dispatch'
+    && format('Retry Failed Tests - Run ID {0} - Attempt {1}', github.event.client_payload.run_id, github.event.client_payload.attempt)
     || 'E2E Tests' }}
 
 on:
@@ -41,22 +41,9 @@ on:
         description: 'Source framework run ID for historical validation'
         required: false
         type: string
-
-      retry_run_id:
-        description: 'Logical framework run ID for automatic retry'
-        required: false
-        type: string
-
-      retry_attempt:
-        description: 'Retry attempt number'
-        required: false
-        default: '0'
-        type: number
-
-      source_workflow_run_id:
-        description: 'Previous GitHub Actions run ID containing retry results'
-        required: false
-        type: string
+  repository_dispatch:
+    types:
+      - automatic-retry
 
 permissions:
   contents: read
@@ -92,17 +79,17 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Download retry plan
-        if: ${{ inputs.retry_run_id != '' }}
+        if: ${{ github.event_name == 'repository_dispatch' }}
         uses: actions/download-artifact@v4
         with:
-          name: retry-plan-${{ inputs.source_workflow_run_id }}-attempt-${{ inputs.retry_attempt }}
+          name: retry-plan-${{ github.event.client_payload.source_run_id }}-attempt-${{ github.event.client_payload.attempt }}
           path: artifacts/retry-plan
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
-          run-id: ${{ inputs.source_workflow_run_id }}
+          run-id: ${{ github.event.client_payload.source_run_id }}
 
       - name: Create full-suite shard plan
-        if: ${{ github.event_name == 'push' || inputs.execution_mode == 'full-suite' }}
+        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'full-suite') }}
         run: |
           mkdir -p artifacts
 
@@ -112,7 +99,7 @@ jobs:
             > artifacts/shard-plan.json
 
       - name: Create historical validation shard plan
-        if: ${{ inputs.execution_mode == 'historical-validation' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'historical-validation' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -129,7 +116,7 @@ jobs:
         run: |
           mkdir -p artifacts
 
-          if [ -n "${{ inputs.retry_run_id }}" ]; then
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
             RETRY_PLAN_FILE="$(find artifacts/retry-plan -type f -name 'retry-plan.json' -print -quit)"
 
             if [ -z "$RETRY_PLAN_FILE" ]; then
@@ -212,9 +199,9 @@ jobs:
           EXECUTION_TYPE="initial"
           ATTEMPT="0"
 
-          if [ -n "${{ inputs.retry_run_id }}" ]; then
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
             EXECUTION_TYPE="retry"
-            ATTEMPT="${{ inputs.retry_attempt }}"
+            ATTEMPT="${{ github.event.client_payload.attempt }}"
           fi
 
           echo "Execution type: $EXECUTION_TYPE"
@@ -222,7 +209,7 @@ jobs:
 
           node scripts/execute-shard.js \
             --shard-file "artifacts/shard-${{ matrix.shard.shard }}.json" \
-            --run-id "${{ inputs.retry_run_id || github.run_id }}" \
+            --run-id "${{ github.event.client_payload.run_id || github.run_id }}" \
             --execution-type "$EXECUTION_TYPE" \
             --attempt "$ATTEMPT"
 
@@ -230,8 +217,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: execution-result-${{ github.run_id }}-shard-${{ matrix.shard.shard }}-attempt-${{ inputs.retry_attempt || '0' }}
-          path: artifacts/${{ inputs.retry_run_id || github.run_id }}/${{ inputs.retry_run_id != '' && 'retry' || 'initial' }}-shard-${{ matrix.shard.shard }}-attempt-${{ inputs.retry_attempt || '0' }}.json
+          name: execution-result-${{ github.run_id }}-shard-${{ matrix.shard.shard }}-attempt-${{ github.event.client_payload.attempt || '0' }}
+          path: artifacts/${{ github.event.client_payload.run_id || github.run_id }}/${{ github.event_name == 'repository_dispatch' && 'retry' || 'initial' }}-shard-${{ matrix.shard.shard }}-attempt-${{ github.event.client_payload.attempt || '0' }}.json
           retention-days: 14
   collect-execution-results:
     name: Collect Execution Results
@@ -239,7 +226,7 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       actions: write
 
     env:
@@ -266,9 +253,9 @@ jobs:
           EXECUTION_TYPE="initial"
           ATTEMPT="0"
 
-          if [ -n "${{ inputs.retry_run_id }}" ]; then
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
             EXECUTION_TYPE="retry"
-            ATTEMPT="${{ inputs.retry_attempt }}"
+            ATTEMPT="${{ github.event.client_payload.attempt }}"
           fi
 
           NEXT_ATTEMPT=$((ATTEMPT + 1))
@@ -286,7 +273,7 @@ jobs:
       - name: Download execution results
         uses: actions/download-artifact@v4
         with:
-          pattern: execution-result-${{ github.run_id }}-shard-*-attempt-${{ inputs.retry_attempt || '0' }}
+          pattern: execution-result-${{ github.run_id }}-shard-*-attempt-${{ github.event.client_payload.attempt || '0' }}
           path: artifacts/execution-results
           merge-multiple: true
 
@@ -303,7 +290,7 @@ jobs:
 
           node scripts/create-retry-plan.js \
             --results-directory "artifacts/execution-results" \
-            --scenarios-per-shard "${{ inputs.scenarios_per_shard || '2' }}" \
+            --scenarios-per-shard "${{ github.event.client_payload.scenarios_per_shard || inputs.scenarios_per_shard || '2' }}" \
             --attempt "$NEXT_ATTEMPT" \
             --output "artifacts/retry/retry-plan.json"
 
@@ -325,11 +312,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
-          BRANCH: ${{ github.ref_name }}
-          TAG: ${{ inputs.test_tag || '@regression' }}
-          SCENARIOS_PER_SHARD: ${{ inputs.scenarios_per_shard || '2' }}
-          MAX_RETRIES: ${{ inputs.max_retries || '2' }}
-          RETRY_RUN_ID: ${{ inputs.retry_run_id || github.run_id }}
+          TAG: ${{ github.event.client_payload.test_tag || inputs.test_tag || '@regression' }}
+          SCENARIOS_PER_SHARD: ${{ github.event.client_payload.scenarios_per_shard || inputs.scenarios_per_shard || '2' }}
+          MAX_RETRIES: ${{ github.event.client_payload.max_retries || inputs.max_retries || '2' }}
+          RETRY_RUN_ID: ${{ github.event.client_payload.run_id || github.run_id }}
           CURRENT_ATTEMPT: ${{ env.ATTEMPT }}
           NEXT_ATTEMPT: ${{ steps.execution-context.outputs.next_attempt }}
           SOURCE_WORKFLOW_RUN_ID: ${{ github.run_id }}
@@ -351,13 +337,17 @@ jobs:
           echo "Retry attempt: $NEXT_ATTEMPT"
           echo "Source workflow run ID: $SOURCE_WORKFLOW_RUN_ID"
 
-          gh workflow run e2e.yml \
-            --repo "$REPOSITORY" \
-            --ref "$BRANCH" \
-            -f test_tag="$TAG" \
-            -f scenarios_per_shard="$SCENARIOS_PER_SHARD" \
-            -f max_retries="$MAX_RETRIES" \
-            -f execution_mode=full-suite \
-            -f retry_run_id="$RETRY_RUN_ID" \
-            -f retry_attempt="$NEXT_ATTEMPT" \
-            -f source_workflow_run_id="$SOURCE_WORKFLOW_RUN_ID"
+          CLIENT_PAYLOAD="$(jq -n \
+            --arg run_id "$RETRY_RUN_ID" \
+            --arg attempt "$NEXT_ATTEMPT" \
+            --arg source_run_id "$SOURCE_WORKFLOW_RUN_ID" \
+            --arg test_tag "$TAG" \
+            --arg scenarios_per_shard "$SCENARIOS_PER_SHARD" \
+            --arg max_retries "$MAX_RETRIES" \
+            '{run_id: $run_id, attempt: ($attempt | tonumber), source_run_id: $source_run_id, test_tag: $test_tag, scenarios_per_shard: ($scenarios_per_shard | tonumber), max_retries: ($max_retries | tonumber)}')"
+
+          jq -n \
+            --arg event_type "automatic-retry" \
+            --argjson client_payload "$CLIENT_PAYLOAD" \
+            '{event_type: $event_type, client_payload: $client_payload}' \
+            | gh api --method POST "repos/$REPOSITORY/dispatches" --input -
