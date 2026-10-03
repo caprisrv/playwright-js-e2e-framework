@@ -112,7 +112,7 @@ jobs:
           run-id: ${{ inputs.source_workflow_run_id }}
 
       - name: Create full-suite shard plan
-        if: ${{ inputs.execution_mode == 'full-suite' }}
+        if: ${{ github.event_name == 'push' || inputs.execution_mode == 'full-suite' }}
         run: |
           mkdir -p artifacts
 
