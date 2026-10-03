@@ -1,7 +1,13 @@
 name: E2E Tests
 run-name: >-
   ${{ github.event_name == 'repository_dispatch'
-    && format('Retry Failed Tests - Run ID {0} - Attempt {1}', github.event.client_payload.run_id, github.event.client_payload.attempt)
+    && format('Automatic Retry - Run ID {0} - Attempt {1}', github.event.client_payload.run_id, github.event.client_payload.attempt)
+    || github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'historical-validation'
+    && 'Manual Rerun Failure'
+    || github.event_name == 'workflow_dispatch'
+    && 'E2E Tests - Manual'
+    || github.event_name == 'push'
+    && 'E2E Tests - Push'
     || 'E2E Tests' }}
 
 on:
