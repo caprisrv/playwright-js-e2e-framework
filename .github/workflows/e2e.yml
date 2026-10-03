@@ -6,6 +6,8 @@ run-name: >-
     && 'Manual Rerun Failure'
     || github.event_name == 'workflow_dispatch'
     && 'E2E Tests - Manual'
+    || github.event_name == 'schedule'
+    && 'E2E Tests - Scheduled Regression'
     || github.event_name == 'push'
     && 'E2E Tests - Push'
     || 'E2E Tests' }}
@@ -14,6 +16,9 @@ on:
   push:
     branches:
       - main
+
+  schedule:
+    - cron: '0 2 * * *'
 
   workflow_dispatch:
     inputs:
@@ -95,7 +100,7 @@ jobs:
           run-id: ${{ github.event.client_payload.source_run_id }}
 
       - name: Create full-suite shard plan
-        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'full-suite') }}
+        if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'full-suite') }}
         run: |
           mkdir -p artifacts
 

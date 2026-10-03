@@ -8,5 +8,5 @@ test('user can remove a product from the cart', { tag: '@regression', }, async (
 
   await cartPage.removeBackpackFromCart();
 
-  await expect(cartPage.backpackItem).toBeVisible();
+  await expect(cartPage.backpackItem).toBeHidden();
 });
