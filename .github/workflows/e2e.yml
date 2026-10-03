@@ -1,4 +1,8 @@
 name: E2E Tests
+run-name: >-
+  ${{ inputs.execution_mode == 'automatic-retry'
+    && format('Retry Failed Tests - Run ID {0} - Attempt {1}', inputs.retry_run_id, inputs.retry_attempt)
+    || 'E2E Tests' }}
 
 on:
   push:
