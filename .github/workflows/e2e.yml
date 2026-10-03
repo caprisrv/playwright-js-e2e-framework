@@ -357,3 +357,30 @@ jobs:
             --argjson client_payload "$CLIENT_PAYLOAD" \
             '{event_type: $event_type, client_payload: $client_payload}' \
             | gh api --method POST "repos/$REPOSITORY/dispatches" --input -
+
+      - name: Generate consolidated Extent-style report
+        if: ${{ success() }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          LOGICAL_RUN_ID: ${{ github.event.client_payload.run_id || github.run_id }}
+          MAX_RETRIES: ${{ github.event.client_payload.max_retries || inputs.max_retries || '2' }}
+        run: |
+          FAILED_SCENARIOS="$(jq -r '.totalFailedScenarios' artifacts/retry/retry-plan.json)"
+
+          if [ "$FAILED_SCENARIOS" -gt 0 ] && [ "$ATTEMPT" -lt "$MAX_RETRIES" ]; then
+            echo "Retry attempt $((ATTEMPT + 1)) will continue. The consolidated report will be generated after the retry chain finishes."
+            exit 0
+          fi
+
+          node scripts/generate-extent-report.js \
+            --run-id "$LOGICAL_RUN_ID" \
+            --output "artifacts/extent-report/index.html"
+
+      - name: Upload consolidated Extent-style report
+        if: ${{ always() && hashFiles('artifacts/extent-report/index.html') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: consolidated-extent-report-${{ github.event.client_payload.run_id || github.run_id }}
+          path: artifacts/extent-report/index.html
+          retention-days: 14

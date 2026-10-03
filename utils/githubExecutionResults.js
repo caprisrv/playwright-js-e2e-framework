@@ -77,7 +77,7 @@ export function findRelatedWorkflowRuns(
   sourceRunId,
 ) {
   const retryPattern = new RegExp(
-    `^Retry Failed Tests - Run ID ${escapeRegex(
+    `^Automatic Retry - Run ID ${escapeRegex(
       sourceRunId,
     )} - Attempt (\\d+)$`,
   );
