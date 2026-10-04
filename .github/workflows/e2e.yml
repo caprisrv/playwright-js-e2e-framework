@@ -112,13 +112,22 @@ jobs:
           repository: ${{ github.repository }}
           run-id: ${{ github.event.client_payload.source_run_id }}
 
+      - name: Determine execution tag
+        id: execution-tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.test_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=@regression" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create full-suite shard plan
         if: ${{ github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'full-suite') }}
         run: |
           mkdir -p artifacts
 
           node scripts/discover-tests.js \
-            --tag "${{ inputs.test_tag || '@regression' }}" \
+            --tag "${{ steps.execution-tag.outputs.tag }}" \
             --scenarios-per-shard "${{ inputs.scenarios_per_shard || '2' }}" \
             > artifacts/shard-plan.json
 

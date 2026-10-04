@@ -50,22 +50,24 @@ const execFileAsync = promisify(execFile);
 
 // npx playwright test --grep @regression --list --reporter=json
 export async function discoverTests(tag) {
-  const normalizedTag = tag.startsWith('@') ? tag : `@${tag}`;
+  const normalizedTag = tag
+    ? (tag.startsWith('@') ? tag : `@${tag}`)
+    : null;
 
-  const { stdout } = await execFileAsync(
-    'npx',
-    [
-      'playwright',
-      'test',
-      '--grep',
-      normalizedTag,
-      '--list',
-      '--reporter=json',
-    ],
-    {
-      maxBuffer: 10 * 1024 * 1024,
-    },
+  const playwrightArguments = ['playwright', 'test'];
+
+  if (normalizedTag) {
+    playwrightArguments.push('--grep', normalizedTag);
+  }
+
+  playwrightArguments.push(
+    '--list',
+    '--reporter=json',
   );
+
+  const { stdout } = await execFileAsync('npx', playwrightArguments, {
+    maxBuffer: 10 * 1024 * 1024,
+  });
 
   const report = JSON.parse(stdout);
 
