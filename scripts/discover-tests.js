@@ -91,7 +91,11 @@ import { createShardPlan } from '../utils/shardManager.js';
 function getArgument(name) {
   const argumentIndex = process.argv.indexOf(name);
 
-  if (argumentIndex === -1 || !process.argv[argumentIndex + 1]) {
+  if (
+    argumentIndex === -1 ||
+    argumentIndex === process.argv.length - 1 ||
+    process.argv[argumentIndex + 1] === undefined
+  ) {
     throw new Error(`Missing required argument: ${name}`);
   }
 
