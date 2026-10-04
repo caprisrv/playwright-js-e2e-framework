@@ -59,6 +59,7 @@ on:
 permissions:
   contents: read
   actions: read
+  id-token: write
 
 jobs:
   discover:
@@ -76,6 +77,18 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::721605753011:role/GitHubActions-EC2-ReadOnly
+          aws-region: us-west-2
+
+      - name: Verify AWS identity
+        run: aws sts get-caller-identity
+
+      - name: Verify EC2 read access
+        run: aws ec2 describe-instances
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
