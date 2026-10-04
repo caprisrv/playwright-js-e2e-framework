@@ -246,6 +246,15 @@ jobs:
             --execution-type "$EXECUTION_TYPE" \
             --attempt "$ATTEMPT"
 
+      - name: Upload Playwright failure artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts-${{ github.run_id }}-shard-${{ matrix.shard.shard }}-attempt-${{ github.event.client_payload.attempt || '0' }}
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Upload execution result
         if: always()
         uses: actions/upload-artifact@v4
