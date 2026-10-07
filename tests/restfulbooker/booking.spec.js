@@ -1,8 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { RestfulBookerBookingPage } from '../../pages/RestfulBookerBookingPage.js';
+import { RestfulBookerApi } from '../../api/RestfulBookerApi.js';
 
-test('customer can book a room', async ({ page, request }) => {
+test(
+  'customer can book a room',
+  { tag: '@regression' },
+  async ({ page, request }) => {
   const bookingPage = new RestfulBookerBookingPage(page);
+  const bookingApi = new RestfulBookerApi(request);
 
   await bookingPage.open();
 
@@ -39,62 +44,21 @@ test('customer can book a room', async ({ page, request }) => {
 
   expect(bookingResponseBody).toHaveProperty('bookingid');
 
-  let token;
   let bookingId;    
   try {
     bookingId = bookingResponseBody.bookingid;
 
-    const authResponse = await request.post('https://automationintesting.online/api/auth/login', {
-      data: {
-        username: 'admin',
-        password: 'password',
-      },
-    });
+    await bookingApi.authenticate();
+    const booking = await bookingApi.getBooking(bookingId);
 
-    expect(authResponse.ok()).toBeTruthy();
-
-    const authResponseBody = await authResponse.json();
-
-    expect(authResponseBody).toHaveProperty('token');
-
-    token = authResponseBody.token;
-
-    const getBookingResponse = await request.get(
-      `https://automationintesting.online/api/booking/${bookingId}`,
-      {
-        headers: {
-          Cookie: `token=${token}`,
-        },
-      },
-    );
-
-    expect(
-      getBookingResponse.ok(),
-      `GET booking returned HTTP ${getBookingResponse.status()}`,
-    ).toBeTruthy();
-
-    const getBookingResponseBody = await getBookingResponse.json();
-
-    expect(getBookingResponseBody.firstname).toBe('Saurabh');
-    expect(getBookingResponseBody.lastname).toBe('Gupta');
-    expect(getBookingResponseBody.roomid).toBe(2);
-    expect(getBookingResponseBody.bookingdates.checkin).toBe('2026-10-11');
-    expect(getBookingResponseBody.bookingdates.checkout).toBe('2026-10-12');
+    expect(booking.firstname).toBe('Saurabh');
+    expect(booking.lastname).toBe('Gupta');
+    expect(booking.roomid).toBe(2);
+    expect(booking.bookingdates.checkin).toBe('2026-10-11');
+    expect(booking.bookingdates.checkout).toBe('2026-10-12');
 
     await expect(page.getByText('Booking Confirmed')).toBeVisible();
   } finally {
-    const deleteBookingResponse = await request.delete(
-      `https://automationintesting.online/api/booking/${bookingId}`,
-      {
-        headers: {
-          Cookie: `token=${token}`,
-        },
-      },
-    );
-
-    expect(
-      deleteBookingResponse.ok(),
-      `DELETE booking returned HTTP ${deleteBookingResponse.status()}`,
-    ).toBeTruthy();
+    await bookingApi.deleteBooking(bookingId);
   }
 });

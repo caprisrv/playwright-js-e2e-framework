@@ -182,6 +182,8 @@ jobs:
     env:
       E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
       E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      RESTFUL_BOOKER_USERNAME: ${{ secrets.RESTFUL_BOOKER_USERNAME }}
+      RESTFUL_BOOKER_PASSWORD: ${{ secrets.RESTFUL_BOOKER_PASSWORD }}
       ENVIRONMENT: qa
 
     steps:
