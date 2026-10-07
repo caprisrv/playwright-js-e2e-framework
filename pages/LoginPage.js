@@ -9,6 +9,10 @@ export class LoginPage extends BasePage {
     this.loginButton = page.locator('#login-button');
   }
 
+  async open() {
+    await this.page.goto('https://www.saucedemo.com/');
+  }
+
   async login(username, password) {
     await this.usernameInput.fill(username);
     await this.passwordInput.fill(password);

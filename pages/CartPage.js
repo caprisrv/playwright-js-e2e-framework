@@ -8,12 +8,10 @@ export class CartPage extends BasePage {
       exact: true,
     });
 
-    this.backpackRemoveButton = page.locator(
-      '#remove-sauce-labs-backpack',
-    );
+    this.backpackRemoveButton = page.locator('#remove-sauce-labs-backpack');
   }
 
   async removeBackpackFromCart() {
-  await this.backpackRemoveButton.click();
-}
+    await this.backpackRemoveButton.click();
+  }
 }
