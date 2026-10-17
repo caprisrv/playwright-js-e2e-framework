@@ -1,4 +1,4 @@
-import { test, expect } from '../../fixtures/testFixtures.js';
+import { test, expect } from '../../../fixtures/testFixtures.js';
 
 test('user can add a product to the cart', { tag: ['@regression', '@smoke'], }, async ({ productsPage, cartPage }) => {
   await productsPage.addBackpackToCart();

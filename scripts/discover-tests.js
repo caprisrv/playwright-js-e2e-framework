@@ -102,7 +102,20 @@ function getArgument(name) {
   return process.argv[argumentIndex + 1];
 }
 
-const tag = getArgument('--tag');
+function getOptionalArgument(name) {
+  const argumentIndex = process.argv.indexOf(name);
+
+  if (
+    argumentIndex === -1 ||
+    process.argv[argumentIndex + 1] === undefined
+  ) {
+    return null;
+  }
+
+  return process.argv[argumentIndex + 1];
+}
+
+const tag = getOptionalArgument('--tag');
 const scenariosPerShard = Number(
   getArgument('--scenarios-per-shard'),
 );

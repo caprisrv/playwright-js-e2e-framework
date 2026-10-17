@@ -100,7 +100,7 @@ supported by requirements or approved clarification.
 
 **Traceability:** RB-123 → AC-1 through AC-6
 
-**Status:** Proposed
+**Status:** Implemented; execution not validated
 
 ---
 
@@ -126,7 +126,7 @@ supported by requirements or approved clarification.
 
 **Traceability:** RB-123 → AC-1
 
-**Status:** Proposed
+**Status:** Planned
 
 **Note:** Calendar selection is the initial proposed interaction.
 Typed date entry is not mandatory unless the requirement
@@ -155,7 +155,7 @@ is clarified.
 
 **Traceability:** RB-123 → AC-2
 
-**Status:** Proposed
+**Status:** Planned
 
 ---
 
@@ -180,7 +180,7 @@ is clarified.
 
 **Traceability:** RB-123 → AC-3
 
-**Status:** Proposed
+**Status:** Planned
 
 ---
 
@@ -205,7 +205,7 @@ is clarified.
 
 **Traceability:** RB-123 → AC-4
 
-**Status:** Proposed
+**Status:** Planned
 
 **Note:** The required fields and validation rules must be
 confirmed before detailed test data is finalized.
@@ -224,13 +224,17 @@ Where appropriate, backend API evidence may be used to verify
 reservation state, provided it does not replace verification
 of the customer-facing journey.
 
-The exact assertions and any API-assisted verification will
-be decided after application exploration.
+TC-001 checks the displayed dates, confirms a successful availability
+response with at least one room, waits for the response's room IDs and
+booking links to render, then selects a room identified by that response.
+It verifies the created booking through the booking API and checks the
+customer-facing confirmation. These are implementation assertions for
+the end-to-end scenario, not additions to the business requirements.
 
 ## 7. Test Data
 
-The following data must be prepared or identified during
-application exploration:
+The following data is used by the implemented TC-001 or must be prepared
+for the remaining planned cases:
 
 - Check-in date.
 - Check-out date.
@@ -240,20 +244,32 @@ application exploration:
 The test must use controlled data suitable for the test
 environment.
 
-Specific field values, date rules, and cleanup procedures
-are not defined by the Jira story and must be established
-during application exploration.
+TC-001 currently selects October 11–12, 2026 with the browser clock fixed
+at October 10, 2026 in America/Phoenix. The booking journey uses guest
+details supplied by the test and authenticates before reservation
+submission so an authentication failure cannot create an uncleaned booking.
+It deletes the created booking after verification even when assertions fail;
+a cleanup error is retained alongside an existing test error. The story does not define date rules,
+required guest fields, or cleanup requirements.
+
+### Recorded application exploration
+
+The diagnostic test was run and its terminal output showed displayed dates
+`20/10/2026` and `22/10/2026`, `/api/room` query values `2026-10-21` and
+`2026-10-23`, and booking-link query values `2026-10-20` and `2026-10-22`
+in America/Phoenix with the diagnostic's fixed clock. This is a runtime
+observation only. The API's formal date contract and the deployed source
+revision remain unconfirmed; no expected API date pair is established here.
 
 ## 8. Test Independence and Cleanup
 
 Each scenario should be designed to avoid depending on the
 execution order of another test.
 
-Tests that create reservations should consider cleanup so
-that repeated execution does not create uncontrolled test data.
-
-The cleanup mechanism must be validated against the
-application and test environment before implementation.
+TC-001 authenticates before creating a reservation and deletes the created
+booking after the API verification and confirmation assertions. Cleanup is
+attempted even if those assertions fail. This behavior is implemented but
+still requires successful browser execution validation.
 
 ## 9. Traceability Matrix
 
@@ -266,8 +282,8 @@ application and test environment before implementation.
 | AC-5: Submit reservation | TC-001 |
 | AC-6: Display booking confirmation | TC-001 |
 
-Coverage in this matrix represents planned coverage,
-not implemented or executed automation.
+The matrix records planned coverage. Implementation and successful
+execution are tracked separately in Current Status.
 
 ## 10. Open Questions
 
@@ -298,6 +314,9 @@ Before automation generation:
 - End-to-end scenarios: 1
 - Focused scenarios: 4
 - Acceptance criteria mapped: 6 of 6
-- Automation generated: No
-- Application exploration completed for this plan: No
+- TC-001 implementation: Present in `tests/restfulbooker/booking.spec.js`
+- TC-001 execution validation: Blocked; Chromium launch failed before the test body
+- Execution-validated scenarios: 0
+- Diagnostic date exploration: Runtime values recorded above; API contract unconfirmed
+- Remaining focused scenarios: TC-002 through TC-005 planned; TC-006 requires clarification
 - Approval status: Draft

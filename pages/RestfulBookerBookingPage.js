@@ -1,3 +1,4 @@
+/* global document:readonly, window:readonly, URL:readonly */
 import { BasePage } from './BasePage.js';
 export class RestfulBookerBookingPage extends BasePage {
   constructor(page) {
@@ -6,6 +7,7 @@ export class RestfulBookerBookingPage extends BasePage {
     this.bookingCard = page.locator('.booking-card');
     this.checkIn = this.bookingCard.locator('input').nth(0);
     this.checkOut = this.bookingCard.locator('input').nth(1);
+    this.bookingLinks = page.locator('.room-card').getByRole('link', { name: 'Book now' });
     this.checkAvailabilityButton = page.getByRole('button', { name: 'Check Availability' });
     this.firstName = page.getByRole('textbox', { name: 'Firstname' });
     this.lastName = page.getByRole('textbox', { name: 'Lastname' });
@@ -51,9 +53,50 @@ export class RestfulBookerBookingPage extends BasePage {
     await this.checkAvailabilityButton.click();
   }
 
-  async selectRoom(roomName) {
-    const roomCard = this.page.locator('.room-card').filter({ hasText: roomName });
-    await roomCard.getByRole('link', { name: 'Book now' }).click();
+  async getDisplayedDates() {
+    return {
+      checkin: await this.checkIn.inputValue(),
+      checkout: await this.checkOut.inputValue(),
+    };
+  }
+
+  async waitForAvailabilityResults(expectedRooms, dates = {}) {
+    await this.page.waitForFunction(({ roomIds, checkin, checkout }) => {
+      const roomsSection = document.querySelector('#rooms');
+      const bookingLinks = Array.from(document.querySelectorAll('#rooms .room-card a'));
+      const renderedBookings = bookingLinks.map((link) => {
+        const href = link.getAttribute('href') || '';
+        const url = new URL(href, window.location.origin);
+        return {
+          roomId: Number(url.pathname.split('/').pop()),
+          checkin: url.searchParams.get('checkin'),
+          checkout: url.searchParams.get('checkout'),
+        };
+      });
+      const expectedIds = new Set(roomIds);
+      const renderedIds = new Set(renderedBookings.map(({ roomId }) => roomId));
+
+      return (
+        roomsSection &&
+        window.scrollY > 0 &&
+        roomsSection.getBoundingClientRect().top < 1 &&
+        renderedBookings.length === roomIds.length &&
+        renderedIds.size === expectedIds.size &&
+        [...expectedIds].every((roomId) => renderedIds.has(roomId)) &&
+        renderedBookings.every(({ checkin: linkCheckin, checkout: linkCheckout }) =>
+          (checkin === undefined || linkCheckin === checkin) &&
+          (checkout === undefined || linkCheckout === checkout),
+        )
+      );
+    }, { roomIds: expectedRooms, ...dates });
+  }
+
+  async getBookingLinkUrls() {
+    return this.bookingLinks.evaluateAll((links) => links.map((link) => link.href));
+  }
+
+  async selectRoomById(roomId) {
+    await this.page.locator(`#rooms .room-card a[href^="/reservation/${roomId}?"]`).click();
   }
 
   async startReservation() {

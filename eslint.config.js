@@ -2,16 +2,21 @@ import eslint from '@eslint/js';
 import playwright from 'eslint-plugin-playwright';
 
 export default [
-  eslint.configs.recommended,
-
+  // Globally exclude generated files and dependencies.
   {
-    files: ['**/*.js'],
     ignores: [
       'node_modules/**',
       'test-results/**',
       'playwright-report/**',
       'blob-report/**',
+      'playwright/.cache/**',
     ],
+  },
+
+  eslint.configs.recommended,
+
+  {
+    files: ['**/*.js'],
     languageOptions: {
       globals: {
         process: 'readonly',

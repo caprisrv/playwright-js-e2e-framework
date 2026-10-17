@@ -205,30 +205,28 @@ The following behaviors can be derived from the acceptance criteria.
 These behaviors describe what should be verified, not how
 the application implements the behavior.
 
-## 11. Proposed Test Cases
+## 11. Test Case Mapping and Status
 
-The following are planning candidates, not yet approved
-automation scripts.
+The canonical test case IDs align with test-plan.md. TC-001 is the
+complete booking journey; the focused cases cover individual behaviors.
 
 | Test ID | Proposed Test Case | Traceability | Status |
 |---|---|---|---|
-| TC-001 | Customer selects dates using the calendar. | AC-1 | Proposed |
-| TC-002 | Customer enters dates by typing. | AC-1 | Requires clarification |
-| TC-003 | Customer views available rooms for selected dates. | AC-2 | Proposed |
-| TC-004 | Customer selects an available room. | AC-3 | Proposed |
-| TC-005 | Customer enters required guest information. | AC-4 | Proposed |
-| TC-006 | Customer submits a reservation. | AC-5 | Proposed |
-| TC-007 | Customer sees confirmation after successful reservation. | AC-6 | Proposed |
+| TC-001 | Customer successfully books an available room. | AC-1 through AC-6 | Implemented; execution not validated |
+| TC-002 | Customer selects check-in and check-out dates. | AC-1 | Planned |
+| TC-003 | Customer views available rooms for selected dates. | AC-2 | Planned |
+| TC-004 | Customer selects an available room. | AC-3 | Planned |
+| TC-005 | Customer provides required guest information. | AC-4 | Planned |
+| TC-006 | Customer enters dates by typing. | AC-1 | Requires clarification |
 
 ### Test Boundary Notes
 
-- TC-002 assumes typed date entry is supported. AC-1 does not
+- TC-006 assumes typed date entry is supported. AC-1 does not
   explicitly require this interaction method.
-- TC-005, TC-006, and TC-007 may be combined into one end-to-end
-  scenario.
-- Final test boundaries will be decided during test planning.
-- Test data, detailed steps, locators, and API verification
-  have not yet been defined.
+- TC-001 combines the complete journey; TC-002 through TC-005 are
+  focused coverage and are not additional steps in its traceability ID.
+- Detailed test data and API verification are implementation choices,
+  not additional business requirements.
 
 ## 12. Open Questions
 
@@ -297,14 +295,18 @@ The following rules apply to this artifact.
 ```text
 Jira Story RB-123
        |
-       +-- AC-1 --> TB-001 --> TC-001 / TC-002
+       +-- AC-1 --> TB-001 --> TC-001 / TC-002 / TC-006
        |
-       +-- AC-2 --> TB-002 --> TC-003
+       +-- AC-2 --> TB-002 --> TC-001 / TC-003
        |
-       +-- AC-3 --> TB-003 --> TC-004
+       +-- AC-3 --> TB-003 --> TC-001 / TC-004
        |
-       +-- AC-4 --> TB-004 --> TC-005
+       +-- AC-4 --> TB-004 --> TC-001 / TC-005
        |
-       +-- AC-5 --> TB-005 --> TC-006
+       +-- AC-5 --> TB-005 --> TC-001
        |
-       +-- AC-6 --> TB-006 --> TC-007
+       +-- AC-6 --> TB-006 --> TC-001
+```
+
+TC-001 is implemented in the framework. Its successful execution has not
+been validated because Chromium could not launch in the current environment.
