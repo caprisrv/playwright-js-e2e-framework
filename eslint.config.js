@@ -20,6 +20,9 @@ export default [
     languageOptions: {
       globals: {
         process: 'readonly',
+        fetch: 'readonly',
+        Buffer: 'readonly',
+        console: 'readonly',
       },
     },
     plugins: {
