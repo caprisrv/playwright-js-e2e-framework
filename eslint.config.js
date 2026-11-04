@@ -23,6 +23,7 @@ export default [
         fetch: 'readonly',
         Buffer: 'readonly',
         console: 'readonly',
+        AbortSignal: 'readonly',
       },
     },
     plugins: {
